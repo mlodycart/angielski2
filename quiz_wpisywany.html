@@ -79,7 +79,6 @@
 
         .feedback { margin-top: 20px; font-size: 18px; font-weight: 600; min-height: 35px; line-height: 1.4; }
         .correct { color: #4CAF50; }
-        .partial-correct { color: #ffd700; }
         .incorrect { color: #f44336; }
         .skipped-text { color: #9aa0a6; }
         .counter { font-size: 14px; color: #9aa0a6; margin-bottom: 12px; font-weight: 600; }
@@ -90,7 +89,6 @@
         .summary-list { background: rgba(255, 255, 255, 0.02); border-radius: 12px; padding: 12px; border: 1px solid rgba(255, 255, 255, 0.08); display: flex; flex-direction: column; gap: 10px; max-height: 350px; overflow-y: auto; }
         .summary-item { background: rgba(255, 255, 255, 0.04); border-radius: 10px; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid #555; gap: 10px; flex-wrap: wrap; }
         .summary-item.perfect { border-left-color: #4CAF50; }
-        .summary-item.partial { border-left-color: #ffd700; }
         .summary-item.failed { border-left-color: #f44336; }
         .summary-item.skipped { border-left-color: #888; background: rgba(255,255,255,0.02); }
         .summary-item-content { flex-grow: 1; font-size: 15px; line-height: 1.4; }
@@ -133,7 +131,7 @@
             
             <div class="stats-grid">
                 <div class="stat-card" id="in-last-card">
-                    <div class="stat-card-title">Ostatnie pytanie</div>
+                    <div class="stat-card-title">Ostatni wynik</div>
                     <div class="stat-card-value" id="in-last-score-text">0%</div>
                 </div>
                 <div class="stat-card" id="in-avg-card">
@@ -167,41 +165,23 @@
 
     <script src="historyData.js"></script>
     <script>
+        // ŚCISŁY ALGORYTM SPRAWDZAJĄCY: Wymaga idealnego dopasowania całego słówka/zwrotu
         function evaluateAnswer(userStr, targetTitle) {
-            const cleanUser = userStr.toLowerCase().trim().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "");
-            const cleanTarget = targetTitle.toLowerCase().trim().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "");
+            const cleanUser = userStr.toLowerCase().trim().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").replace(/\s+/g, " ");
+            const cleanTarget = targetTitle.toLowerCase().trim().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").replace(/\s+/g, " ");
             
-            if (!cleanUser) return { percentage: 0, matched: [], missing: [targetTitle] };
-            if (cleanUser === cleanTarget) return { percentage: 100, matched: [targetTitle], missing: [] };
-
-            // Dokładne lub bliskie dopasowanie ciągu znaków (dla słówek i krótkich zwrotów)
-            if (cleanTarget.includes(cleanUser) || cleanUser.includes(cleanTarget)) {
-                return { percentage: 100, matched: [targetTitle], missing: [] };
+            if (!cleanUser) return { percentage: 0 };
+            
+            // Wymaga idealnej zgodności całego ciągu znaków
+            if (cleanUser === cleanTarget) {
+                return { percentage: 100 };
             }
 
-            const userWords = cleanUser.split(/\s+/).filter(w => w.length > 1);
-            const targetWords = cleanTarget.split(/\s+/).filter(w => w.length > 1);
-            
-            if (targetWords.length === 0) return { percentage: 100, matched: [targetTitle], missing: [] };
-
-            let matchedCount = 0;
-            targetWords.forEach(tw => {
-                if (userWords.some(uw => uw.includes(tw) || tw.includes(uw))) {
-                    matchedCount++;
-                }
-            });
-
-            let percentage = Math.round((matchedCount / targetWords.length) * 100);
-            if (percentage >= 50 || matchedCount >= 1) {
-                return { percentage: 100, matched: [targetTitle], missing: [] };
-            }
-
-            return { percentage: 0, matched: [], missing: [targetTitle] };
+            return { percentage: 0 };
         }
 
         function getScoreColor(percent) {
-            if (percent < 30) return '#f44336';
-            if (percent < 75) return '#ffd700';
+            if (percent === 0) return '#f44336';
             return '#4CAF50';
         }
 
@@ -247,7 +227,6 @@
             document.getElementById("in-skip-btn").style.display = "inline-block";
             document.getElementById("in-end-btn").style.display = "inline-block";
             
-            // Wyświetlamy znaczenie po polsku (`desc`)
             document.getElementById("in-val-translation").innerText = inCurrentWord.desc;
             document.getElementById("in-progress-text").innerText = `Pytanie: ${inQuestionNumber} / ${inTotalPool.length} | Pominięto: ${inSkippedCount}`;
             
@@ -264,13 +243,12 @@
             if (!val) { feedbackEl.innerHTML = "<span class='incorrect'>Wpisz angielskie słówko, aby sprawdzić!</span>"; return; }
 
             inIsAnswerChecked = true;
-            // Sprawdzamy odpowiedź względem angielskiego słówka (`title`)
             const evalRes = evaluateAnswer(val, inCurrentWord.title);
             inScoreTotal += evalRes.percentage;
 
             inp.disabled = true;
             let statusText = "";
-            if (evalRes.percentage >= 75) {
+            if (evalRes.percentage === 100) {
                 inp.style.borderColor = "#4CAF50";
                 statusText = `<span class='correct'>Dobrze! 🎉</span>`;
             } else {
@@ -281,7 +259,7 @@
             feedbackEl.innerHTML = `
                 ${statusText}<br>
                 <div style="font-size: 15px; margin-top: 8px; color: #aaa;">
-                    <strong>Prawidłowa odpowiedź:</strong> ${inCurrentWord.title}<br>
+                    <strong>Wzorcowe słówko (ang.):</strong> ${inCurrentWord.title}<br>
                 </div>
             `;
 
@@ -307,7 +285,7 @@
                 <div style="font-size: 15px; margin-top: 5px; color: #00e5ff;">${inCurrentWord.title}</div>
             `;
 
-            inHistory.push({ item: inCurrentWord, userAnswer: "(Pominięto)", eval: { percentage: 0, matched: [], missing: [] }, skipped: true });
+            inHistory.push({ item: inCurrentWord, userAnswer: "(Pominięto)", eval: { percentage: 0 }, skipped: true });
             updateInputStats(0);
 
             document.getElementById("in-check-btn").style.display = "none";
@@ -321,7 +299,7 @@
             let retryWords = [];
 
             let listHtml = inHistory.map((h, idx) => {
-                if (h.skipped || h.eval.percentage < 75) retryWords.push(h.item);
+                if (h.skipped || h.eval.percentage < 100) retryWords.push(h.item);
                 if (h.skipped) {
                     return `
                         <div class="summary-item skipped">
@@ -333,7 +311,7 @@
                         </div>
                     `;
                 }
-                const statusClass = h.eval.percentage >= 75 ? 'perfect' : 'failed';
+                const statusClass = h.eval.percentage === 100 ? 'perfect' : 'failed';
                 return `
                     <div class="summary-item ${statusClass}">
                         <div class="summary-item-content">
@@ -360,7 +338,7 @@
                     </svg>
                 </a>
                 <h1>Koniec Quizu! 🎉</h1>
-                <div class="summary-score">Twój średni wynik dopasowania: <strong>${avgPercent}%</strong></div>
+                <div class="summary-score">Twój średni wynik celności: <strong>${avgPercent}%</strong></div>
                 <div class="summary-container">
                     <div class="summary-title">Podsumowanie odpowiedzi:</div>
                     <div class="summary-list">${listHtml}</div>
@@ -387,7 +365,7 @@
                 <h1>Quiz: Wpisz angielskie słówko</h1>
                 <div class="stats-grid">
                     <div class="stat-card" id="in-last-card">
-                        <div class="stat-card-title">Ostatnie pytanie</div>
+                        <div class="stat-card-title">Ostatni wynik</div>
                         <div class="stat-card-value" id="in-last-score-text">0%</div>
                     </div>
                     <div class="stat-card" id="in-avg-card">
